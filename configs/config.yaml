@@ -1,0 +1,13 @@
+defaults:
+  - model: default
+  - training: default
+  - data: synthetic_smoke
+  - _self_
+
+seed: 42
+output_dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+
+hydra:
+  run:
+    dir: ${output_dir}
+  output_subdir: null

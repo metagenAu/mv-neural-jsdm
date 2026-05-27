@@ -1,0 +1,6 @@
+max_epochs: 5
+batch_size: 32
+lr: 5.0e-3
+val_frac: 0.15
+log_every_n_steps: 1
+progress_bar: false

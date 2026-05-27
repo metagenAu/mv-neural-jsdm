@@ -1,0 +1,19 @@
+defaults:
+  - /assay@assays.assay_a: counts_nb
+  - /assay@assays.assay_b: counts_nb
+  - /env: none
+  - /hierarchy: flat
+  - /gp: "off"
+  - /feature_structure@feature_structures.assay_a: pagel_lambda
+  - /feature_structure@feature_structures.assay_b: pagel_lambda
+  - _self_
+
+shared_dim: 6
+private_dim: 2
+fusion: mopoe
+beta_shared: 1.0
+beta_private: 1.0
+
+ar:
+  enabled: false
+  index_name: null

@@ -1,0 +1,4 @@
+# @package model.hierarchy
+levels:
+  - name: group__site
+    mode: hierarchical_prior

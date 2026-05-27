@@ -1,0 +1,5 @@
+# @package _global_
+defaults:
+  - override /data: soil_full
+  - override /env: full
+  - override /hierarchy: nested_with_crossed_year

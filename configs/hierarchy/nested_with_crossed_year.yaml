@@ -1,0 +1,6 @@
+# @package model.hierarchy
+levels:
+  - name: group__site
+    mode: hierarchical_prior
+  - name: group__year
+    mode: embedding

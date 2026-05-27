@@ -1,0 +1,5 @@
+# @package _global_
+defaults:
+  - override /data: bio_only_two_assays
+  - override /env: none
+  - override /hierarchy: flat

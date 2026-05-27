@@ -1,0 +1,7 @@
+# @package model.gp
+enabled: true
+components:
+  - index: cont__day_of_year
+    kernel: rbf
+  - index: cont__easting
+    kernel: matern52

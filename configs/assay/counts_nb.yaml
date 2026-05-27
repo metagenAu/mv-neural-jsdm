@@ -1,0 +1,7 @@
+# @package _group_
+kind: counts
+likelihood: nb
+size_factor: true
+transform: identity
+encoder_config: {}
+decoder_config: {}

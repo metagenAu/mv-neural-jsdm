@@ -1,0 +1,4 @@
+# @package model.gp
+enabled: true
+index: cont__easting
+kernel: matern52

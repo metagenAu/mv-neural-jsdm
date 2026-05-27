@@ -1,0 +1,5 @@
+# @package _global_
+defaults:
+  - override /data: soil_full
+  - override /env: none
+  - override /hierarchy: flat
