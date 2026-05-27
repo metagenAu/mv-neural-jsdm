@@ -221,3 +221,31 @@ def synthetic_smoke_dir() -> Path:
 @pytest.fixture(scope="session")
 def synthetic_smoke_truth(synthetic_smoke_dir: Path) -> dict:
     return json.loads((synthetic_smoke_dir / "truth.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def trained_smoke(synthetic_smoke_dir: Path, tmp_path_factory) -> dict:
+    """Train the smoke model once and share across tests.
+
+    Returns ``{"model": MVNeuralJSDM, "datamodule": MVNeuralJSDMDataModule,
+    "summary": dict}``. Same config as the smoke test (5 epochs); no extra
+    epochs spent so we don't blow the smoke budget.
+    """
+    from hydra import compose, initialize_config_dir
+
+    from mvnjsdm.cli.train import run
+
+    out_dir = tmp_path_factory.mktemp("trained_smoke")
+    CONFIG_DIR = REPO_ROOT / "configs"
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR)):
+        cfg = compose(
+            config_name="config",
+            overrides=[
+                "+experiment=smoke",
+                f"data.data_root={synthetic_smoke_dir}",
+                f"output_dir={out_dir}",
+                "seed=0",
+            ],
+        )
+    result = run(cfg)
+    return result

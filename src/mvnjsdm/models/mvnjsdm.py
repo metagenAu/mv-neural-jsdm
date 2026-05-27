@@ -28,8 +28,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .decoders import Decoder, NBDecoder
-from .encoders import CountEncoder, Encoder, EnvCovariateEncoder
+from .decoders import BernoulliDecoder, Decoder, GaussianDecoder, NBDecoder
+from .encoders import BinaryEncoder, ContinuousEncoder, CountEncoder, Encoder, EnvCovariateEncoder
 from .feature_priors import FeatureStructurePrior, NoFeaturePrior, PhylogeneticPagel
 from .fusion import ExpertOutput, Fusion, build_fusion
 from .hierarchy import HierarchyBlock, LevelSpec, empty_hierarchy
@@ -53,7 +53,11 @@ class AssaySpec:
 def _build_encoder(spec: AssaySpec, joint_dim: int, env_dim: int) -> Encoder:
     if spec.kind == "counts":
         return CountEncoder(spec.n_features, joint_dim, env_dim=env_dim)
-    raise NotImplementedError(f"encoder for kind={spec.kind} not in smoke path")
+    if spec.kind == "continuous":
+        return ContinuousEncoder(spec.n_features, joint_dim, env_dim=env_dim)
+    if spec.kind == "binary":
+        return BinaryEncoder(spec.n_features, joint_dim, env_dim=env_dim)
+    raise NotImplementedError(f"encoder for kind={spec.kind} not implemented")
 
 
 def _build_decoder(spec: AssaySpec, in_dim: int) -> Decoder:
@@ -73,7 +77,11 @@ def _build_decoder(spec: AssaySpec, in_dim: int) -> Decoder:
             feature_prior=fp,
             use_size_factor=spec.size_factor,
         )
-    raise NotImplementedError(f"decoder for likelihood={spec.likelihood} not in smoke path")
+    if spec.likelihood == "gaussian_masked":
+        return GaussianDecoder(in_dim=in_dim, n_features=spec.n_features, feature_prior=fp)
+    if spec.likelihood == "bernoulli":
+        return BernoulliDecoder(in_dim=in_dim, n_features=spec.n_features, feature_prior=fp)
+    raise NotImplementedError(f"decoder for likelihood={spec.likelihood} not implemented")
 
 
 def _build_likelihood(spec: AssaySpec) -> Likelihood:

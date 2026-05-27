@@ -74,20 +74,99 @@ class CountEncoder(Encoder):
         return mu, lv
 
 
-class ContinuousEncoder(Encoder):  # skeleton
-    def __init__(self, *args, **kwargs) -> None:
+class ContinuousEncoder(Encoder):
+    """MLP encoder for continuous features (assumed pre-scaled).
+
+    The input is multiplied by the per-feature mask (so missing features
+    contribute zero) and the mask is concatenated as an extra channel to give
+    the encoder a signal that the feature is absent.
+    """
+
+    def __init__(
+        self,
+        n_features: int,
+        out_dim: int,
+        hidden: int = 64,
+        depth: int = 2,
+        env_dim: int = 0,
+        dropout: float = 0.0,
+    ) -> None:
         super().__init__()
+        in_dim = n_features * 2 + env_dim  # x + mask concatenated
+        layers: list[nn.Module] = []
+        d = in_dim
+        for _ in range(depth):
+            layers += [nn.Linear(d, hidden), nn.LayerNorm(hidden), nn.SiLU()]
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            d = hidden
+        self.body = nn.Sequential(*layers) if layers else nn.Identity()
+        self.head_mu = nn.Linear(d, out_dim)
+        self.head_lv = nn.Linear(d, out_dim)
+        self.env_dim = env_dim
+        self.n_features = n_features
 
-    def forward(self, *args, **kwargs):  # pragma: no cover - skeleton
-        raise NotImplementedError("ContinuousEncoder is a skeleton")
+    def forward(
+        self,
+        x: Tensor,
+        mask: Tensor,
+        size_factor: Tensor | None = None,  # ignored
+        batch_cov: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor]:
+        xn = x * mask
+        h_in = torch.cat([xn, mask], dim=-1)
+        if batch_cov is not None and self.env_dim > 0:
+            h_in = torch.cat([h_in, batch_cov.float()], dim=-1)
+        h = self.body(h_in)
+        mu = self.head_mu(h)
+        lv = self.head_lv(h).clamp(min=-8.0, max=8.0)
+        return mu, lv
 
 
-class BinaryEncoder(Encoder):  # skeleton
-    def __init__(self, *args, **kwargs) -> None:
+class BinaryEncoder(Encoder):
+    """MLP encoder for binary features in {0,1}; NaN inputs assumed pre-replaced
+    with 0 and recorded in the mask.
+    """
+
+    def __init__(
+        self,
+        n_features: int,
+        out_dim: int,
+        hidden: int = 64,
+        depth: int = 2,
+        env_dim: int = 0,
+        dropout: float = 0.0,
+    ) -> None:
         super().__init__()
+        in_dim = n_features * 2 + env_dim
+        layers: list[nn.Module] = []
+        d = in_dim
+        for _ in range(depth):
+            layers += [nn.Linear(d, hidden), nn.LayerNorm(hidden), nn.SiLU()]
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            d = hidden
+        self.body = nn.Sequential(*layers) if layers else nn.Identity()
+        self.head_mu = nn.Linear(d, out_dim)
+        self.head_lv = nn.Linear(d, out_dim)
+        self.env_dim = env_dim
+        self.n_features = n_features
 
-    def forward(self, *args, **kwargs):  # pragma: no cover - skeleton
-        raise NotImplementedError("BinaryEncoder is a skeleton")
+    def forward(
+        self,
+        x: Tensor,
+        mask: Tensor,
+        size_factor: Tensor | None = None,  # ignored
+        batch_cov: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor]:
+        xn = x * mask
+        h_in = torch.cat([xn, mask], dim=-1)
+        if batch_cov is not None and self.env_dim > 0:
+            h_in = torch.cat([h_in, batch_cov.float()], dim=-1)
+        h = self.body(h_in)
+        mu = self.head_mu(h)
+        lv = self.head_lv(h).clamp(min=-8.0, max=8.0)
+        return mu, lv
 
 
 class EnvCovariateEncoder(nn.Module):

@@ -92,25 +92,64 @@ class ZINBDecoder(Decoder):  # stub
         raise NotImplementedError("ZINBDecoder is a stub")
 
 
-class GaussianDecoder(Decoder):  # stub
-    def __init__(self, *args, **kwargs) -> None:
+class GaussianDecoder(Decoder):
+    """Linear loadings + per-feature learnable log_sigma.
+
+    Forward: mu = z @ W + b, log_sigma = log_sigma_param (broadcast to batch).
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        n_features: int,
+        feature_prior: FeatureStructurePrior | None = None,
+    ) -> None:
         super().__init__()
-        self.feature_prior = NoFeaturePrior()
+        self.in_dim = in_dim
+        self.n_features = n_features
+        self.W = nn.Parameter(torch.randn(in_dim, n_features) * 0.01)
+        self.b = nn.Parameter(torch.zeros(n_features))
+        self.log_sigma_param = nn.Parameter(torch.zeros(n_features))
+        self.feature_prior = feature_prior or NoFeaturePrior()
 
-    def loading_matrix(self) -> Tensor:  # pragma: no cover - stub
-        raise NotImplementedError("GaussianDecoder is a stub")
+    def loading_matrix(self) -> Tensor:
+        return self.W
 
-    def forward(self, *args, **kwargs):  # pragma: no cover - stub
-        raise NotImplementedError("GaussianDecoder is a stub")
+    def forward(
+        self,
+        z: Tensor,
+        batch_cov: Tensor | None = None,
+        size_factor: Tensor | None = None,  # ignored
+    ) -> LikelihoodParams:
+        mu = z @ self.W + self.b
+        log_sigma = self.log_sigma_param.expand_as(mu)
+        return LikelihoodParams(mu=mu, log_sigma=log_sigma)
 
 
-class BernoulliDecoder(Decoder):  # stub
-    def __init__(self, *args, **kwargs) -> None:
+class BernoulliDecoder(Decoder):
+    """Linear loadings -> logits."""
+
+    def __init__(
+        self,
+        in_dim: int,
+        n_features: int,
+        feature_prior: FeatureStructurePrior | None = None,
+    ) -> None:
         super().__init__()
-        self.feature_prior = NoFeaturePrior()
+        self.in_dim = in_dim
+        self.n_features = n_features
+        self.W = nn.Parameter(torch.randn(in_dim, n_features) * 0.01)
+        self.b = nn.Parameter(torch.zeros(n_features))
+        self.feature_prior = feature_prior or NoFeaturePrior()
 
-    def loading_matrix(self) -> Tensor:  # pragma: no cover - stub
-        raise NotImplementedError("BernoulliDecoder is a stub")
+    def loading_matrix(self) -> Tensor:
+        return self.W
 
-    def forward(self, *args, **kwargs):  # pragma: no cover - stub
-        raise NotImplementedError("BernoulliDecoder is a stub")
+    def forward(
+        self,
+        z: Tensor,
+        batch_cov: Tensor | None = None,
+        size_factor: Tensor | None = None,  # ignored
+    ) -> LikelihoodParams:
+        logits = z @ self.W + self.b
+        return LikelihoodParams(mu=logits)

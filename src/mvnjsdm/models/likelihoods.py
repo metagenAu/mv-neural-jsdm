@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import math
 from dataclasses import dataclass
 
 import torch
@@ -65,14 +66,33 @@ class ZINBLikelihood(Likelihood):  # stub
         raise NotImplementedError("ZINBLikelihood is a stub")
 
 
-class GaussianMaskedLikelihood(Likelihood):  # stub
-    def log_prob(self, x, params, mask=None):  # pragma: no cover - stub
-        raise NotImplementedError("GaussianMaskedLikelihood is a stub")
+class GaussianMaskedLikelihood(Likelihood):
+    """N(mu, sigma^2) with sigma = exp(log_sigma) per feature; masked features
+    contribute zero log-prob."""
+
+    def log_prob(self, x: Tensor, params: LikelihoodParams, mask: Tensor | None = None) -> Tensor:
+        assert params.log_sigma is not None, "Gaussian likelihood requires log_sigma"
+        log_sigma = params.log_sigma.clamp(min=-7.0, max=7.0)
+        sigma = torch.exp(log_sigma).clamp_min(1e-4)
+        lp = (
+            -0.5 * ((x - params.mu) / sigma) ** 2
+            - log_sigma
+            - 0.5 * math.log(2.0 * math.pi)
+        )
+        if mask is not None:
+            lp = lp * mask
+        return lp.sum(dim=-1)
 
 
-class BernoulliLikelihood(Likelihood):  # stub
-    def log_prob(self, x, params, mask=None):  # pragma: no cover - stub
-        raise NotImplementedError("BernoulliLikelihood is a stub")
+class BernoulliLikelihood(Likelihood):
+    """Bernoulli with params.mu interpreted as logits; masked entries dropped."""
+
+    def log_prob(self, x: Tensor, params: LikelihoodParams, mask: Tensor | None = None) -> Tensor:
+        logits = params.mu
+        lp = -F.binary_cross_entropy_with_logits(logits, x, reduction="none")
+        if mask is not None:
+            lp = lp * mask
+        return lp.sum(dim=-1)
 
 
 class PoissonLikelihood(Likelihood):  # stub
