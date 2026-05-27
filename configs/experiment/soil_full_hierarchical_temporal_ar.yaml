@@ -1,0 +1,28 @@
+# @package _global_
+# Soil "full + hierarchical + GP + AR" model. This is the most aggressive
+# variance-explanation composition we ship: hierarchical random effects,
+# Pagel priors on count assays, a GP over the phenological index, AND a
+# neural-AR transition on the latent that models step-to-step structure
+# along the same time column. Use as the "kitchen sink" baseline.
+defaults:
+  - /assay@model.assays.chem: continuous_gaussian
+  - /assay@model.assays.indicators: binary_bernoulli
+  - /feature_structure@model.feature_structures.chem: none
+  - /feature_structure@model.feature_structures.indicators: none
+  - override /data: soil_full
+  - override /env@model.env: small
+  - override /hierarchy@model.hierarchy: nested
+  - override /gp@model.gp: phenological
+  - override /feature_structure@model.feature_structures.assay_a: pagel_lambda
+  - override /feature_structure@model.feature_structures.assay_b: pagel_lambda
+
+model:
+  shared_dim: 8
+  private_dim: 4
+  fusion: mopoe
+  ar:
+    enabled: true
+    index_name: cont__t
+    group_level: group__site
+    hidden: 32
+    noise_scale: 1.0

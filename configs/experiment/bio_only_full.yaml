@@ -1,0 +1,14 @@
+# @package _global_
+# Bio-only "full" model: two NB count assays + small env covariate stack +
+# one nested grouping level. Phylogenetic Pagel priors on both assays.
+defaults:
+  - override /data: bio_only_two_assays
+  - override /env@model.env: small
+  - override /hierarchy@model.hierarchy: nested
+  - override /feature_structure@model.feature_structures.assay_a: pagel_lambda
+  - override /feature_structure@model.feature_structures.assay_b: pagel_lambda
+
+model:
+  shared_dim: 8
+  private_dim: 4
+  fusion: mopoe

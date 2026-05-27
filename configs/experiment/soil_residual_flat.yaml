@@ -1,0 +1,23 @@
+# @package _global_
+# Soil residual model: 4 assays (two NB count + one continuous + one binary).
+# No env covariates, flat hierarchy. Pagel priors on the two count assays.
+#
+# We keep the default-mounted assay_a/assay_b as the two NB count assays and
+# add chem (continuous) + indicators (binary) on top. The on-disk dataset is
+# expected to expose four assays under the same names; users can rename via
+# CLI override or by editing this file.
+defaults:
+  - /assay@model.assays.chem: continuous_gaussian
+  - /assay@model.assays.indicators: binary_bernoulli
+  - /feature_structure@model.feature_structures.chem: none
+  - /feature_structure@model.feature_structures.indicators: none
+  - override /data: soil_full
+  - override /env@model.env: none
+  - override /hierarchy@model.hierarchy: flat
+  - override /feature_structure@model.feature_structures.assay_a: pagel_lambda
+  - override /feature_structure@model.feature_structures.assay_b: pagel_lambda
+
+model:
+  shared_dim: 8
+  private_dim: 4
+  fusion: mopoe

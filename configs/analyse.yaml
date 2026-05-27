@@ -1,0 +1,15 @@
+run_dir: ???
+analyses:
+  - variance_partition
+  - latent_interaction
+  - cross_assay
+  - within_assay
+  - ordination
+levels: null
+env_covariates: null
+n_components: 2
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

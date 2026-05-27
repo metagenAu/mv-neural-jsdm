@@ -1,0 +1,12 @@
+# @package model.gp
+# Single GP block with a multi-dim index. The kernel acts on the concatenated
+# [phen, row, col] vector; lengthscales are learned per input dim. For an
+# explicit product structure you'd compose two GPLatentPriors at the Python
+# level; the YAML surface in this pass only exposes one block per model.
+enabled: true
+applies_to: shared
+kernel: rbf
+input_columns: [cont__t, cont__row, cont__col]
+init_lengthscale: 1.0
+init_outputscale: 1.0
+jitter: 1.0e-4

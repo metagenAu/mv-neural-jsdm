@@ -1,0 +1,6 @@
+# @package _global_
+defaults:
+  - override /training: smoke
+  - override /data: synthetic_smoke
+
+seed: 0

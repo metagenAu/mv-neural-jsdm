@@ -1,0 +1,7 @@
+# @package _group_
+kind: binary
+likelihood: bernoulli
+size_factor: false
+transform: identity
+encoder_config: {}
+decoder_config: {}
