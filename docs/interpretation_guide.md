@@ -2,6 +2,36 @@
 
 This document collects pointers for inspecting a trained model.
 
+## Pipeline at a glance
+
+```
+mvnjsdm-train +experiment=<name>  ->  outputs/<stamp>/
+                                          model.ckpt
+                                          config.yaml
+                                          latents.parquet
+                                          summary.json
+
+mvnjsdm-analyse run_dir=outputs/<stamp>
+    analyses=[variance_partition,latent_interaction,cross_assay,
+              within_assay,ordination]
+  ->  outputs/<stamp>/analysis/
+          variance_partition.csv
+          latent_interaction.csv
+          cross_assay_<a>__<b>.parquet
+          within_assay_<a>.parquet
+          ordination.csv
+
+mvnjsdm-export run_dir=outputs/<stamp> formats=[parquet,csv] sem_export=true
+  ->  outputs/<stamp>/latents.parquet
+      outputs/<stamp>/latents.csv
+      outputs/<stamp>/latents_sem.csv   (R-friendly column names)
+```
+
+The reload path in `cli/_reload.py` rebuilds the LightningModule and
+datamodule from the saved config + state dict; you can also drive
+`analysis/*` and `interpret/*` programmatically against
+`(lit, datamodule)` if you prefer notebooks.
+
 ## Latents
 
 Latents are exported via `mvnjsdm.cli.train.run`, which writes
@@ -9,13 +39,14 @@ Latents are exported via `mvnjsdm.cli.train.run`, which writes
 Re-load with pandas/pyarrow and join back on `unit_id` to inspect against
 `units.parquet` covariates.
 
-## Variance partitioning (skeleton)
+## Variance partitioning
 
-`analysis/variance_partition.py` will eventually decompose total latent
-variance into shared / private / hierarchy / GP / residual components. The
-recipe: for each block of the latent and each hierarchy level, compute the
-sample variance of its mean contribution and divide by the sample variance of
-the full posterior mean.
+`analysis/variance_partition.variance_partition(model, dm, levels=..., env_covariates=...)`
+returns a DataFrame indexed by latent dim with one column per supplied factor
+(plus `residual`). The default method is sequential (Type-I) SS regression
+against one-hot encoded `group__*` columns and standardised `env__*` columns
+detected on the datamodule's `units` frame. See the docstring for the `anova`
+and `ablation` alternatives.
 
 ## Feature priors
 
@@ -32,11 +63,16 @@ Each level's `nn.Embedding` weights give the per-group offset in z-space.
 For levels in `hierarchical_prior` mode, the learned per-level `raw_logvar`
 records the partial-pooling shrinkage strength.
 
-## Decoder Jacobian (skeleton)
+## Decoder Jacobian
 
-Backpropagating from a decoder output back to z gives the local sensitivity
-of each feature to each latent dim. `interpret/decoder_jacobian.py` is a
-skeleton.
+`interpret/decoder_jacobian.decoder_jacobian(model, assay=..., z_ref=..., size_factor=...)`
+returns the local `[K_in, F]` sensitivity matrix of `E[x_assay]` to the
+decoder input z (linearisation around `z_ref`). Bernoulli decoders are mapped
+through the sigmoid first so the result is in probability space; NB decoders
+return `d rate / dz`; Gaussian decoders return `dmu / dz`.
+
+`decoder_jacobian_dataset` returns the per-unit Jacobians stacked along axis 0
+for downstream averaging or weighting.
 
 ## Latent collapse
 

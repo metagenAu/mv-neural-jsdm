@@ -80,16 +80,51 @@ class NBDecoder(Decoder):
         return LikelihoodParams(mu=rate, theta=theta_b)
 
 
-class ZINBDecoder(Decoder):  # stub
-    def __init__(self, *args, **kwargs) -> None:
+class ZINBDecoder(Decoder):
+    """Zero-inflated NB decoder.
+
+    Same structure as :class:`NBDecoder`, plus a per-feature ``gate_logits``
+    head producing a sigmoid-bounded dropout probability ``gate`` per cell.
+    The dropout head is shared across units (a per-feature bias), matching
+    the most common ZINB-VAE configuration without unit-specific inputs.
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        n_features: int,
+        feature_prior: FeatureStructurePrior | None = None,
+        use_size_factor: bool = True,
+    ) -> None:
         super().__init__()
-        self.feature_prior = NoFeaturePrior()
+        self.in_dim = in_dim
+        self.n_features = n_features
+        self.W = nn.Parameter(torch.randn(in_dim, n_features) * 0.01)
+        self.b = nn.Parameter(torch.zeros(n_features))
+        self.theta_raw = nn.Parameter(torch.zeros(n_features))
+        # per-feature dropout-logit; sigmoid -> gate prob
+        self.gate_logits = nn.Parameter(torch.full((n_features,), -2.0))
+        self.feature_prior = feature_prior or NoFeaturePrior()
+        self.use_size_factor = use_size_factor
 
-    def loading_matrix(self) -> Tensor:  # pragma: no cover - stub
-        raise NotImplementedError("ZINBDecoder is a stub")
+    def loading_matrix(self) -> Tensor:
+        return self.W
 
-    def forward(self, *args, **kwargs):  # pragma: no cover - stub
-        raise NotImplementedError("ZINBDecoder is a stub")
+    def forward(
+        self,
+        z: Tensor,
+        batch_cov: Tensor | None = None,
+        size_factor: Tensor | None = None,
+    ) -> LikelihoodParams:
+        log_rate = z @ self.W + self.b
+        log_rate = log_rate.clamp(min=-10.0, max=8.0)
+        if self.use_size_factor and size_factor is not None:
+            log_rate = log_rate + torch.log(size_factor.clamp_min(1.0)).unsqueeze(-1)
+        rate = torch.exp(log_rate.clamp(max=15.0))
+        theta = F.softplus(self.theta_raw) + 1e-4
+        theta_b = theta.expand_as(rate)
+        gate = torch.sigmoid(self.gate_logits).expand_as(rate)
+        return LikelihoodParams(mu=rate, theta=theta_b, gate=gate)
 
 
 class GaussianDecoder(Decoder):

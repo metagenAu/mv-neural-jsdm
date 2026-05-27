@@ -1,1 +1,17 @@
+# Four-assay soil example (two count, one continuous, one binary).
+#
+# Expected dataset layout at ${data_root}:
+#   units.parquet                            unit_id, group__site, group__year, env__*, cont__*?
+#   assay__bacteria__counts.parquet          long: unit_id, feature_id, count
+#   assay__bacteria__features.parquet
+#   assay__bacteria__tree.newick             optional
+#   assay__fungi__counts.parquet             (same schema)
+#   assay__fungi__features.parquet
+#   assay__fungi__tree.newick                optional
+#   assay__chem__values.parquet              wide: unit_id + feature cols (continuous)
+#   assay__chem__features.parquet
+#   assay__indicators__binary.parquet        wide: unit_id + feature cols (0/1)
+#   assay__indicators__features.parquet
+#
+# Provide via scripts/prepare_example_soil.py (currently a stub) or by hand.
 data_root: data/examples/soil_full

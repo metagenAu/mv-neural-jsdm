@@ -33,17 +33,45 @@ W[k, :] ~ N(0, sigma^2 * C).
 
 Numerically less stable when `C` is near-singular; a small jitter is added.
 
-## Graph Laplacian (skeleton)
+## Graph Laplacian
 
-Interpretation: a prior of the form `W[k, :] ~ N(0, sigma^2 (L + tau I)^{-1})`
-encourages smoothness over a feature graph (e.g. KEGG, taxonomy). `L` is the
-combinatorial Laplacian `D - A`. The skeleton stores the Laplacian; the
-log-prob is not yet implemented.
+`GraphLaplacian` implements a Tikhonov-style smoothness regulariser over a
+feature graph (e.g. KEGG, taxonomy). Given the combinatorial Laplacian
+`L = D - A` of the feature graph, the log-prob is
 
-## Taxonomic groupwise (skeleton)
+```
+log p(W) = sum_k -alpha * W[k, :] @ L @ W[k, :]
+```
 
-Block-structured prior: features grouped at one taxonomic level share a
-group-level mean. Implementation pending.
+with a learnable positive scalar `alpha` (softplus reparameterisation). This is
+a regulariser, not a proper density: when the graph is connected `L` has a
+zero eigenvalue from the constant vector, so the normalising constant is
+dropped. The penalty grows with the total variation of each row of `W` along
+graph edges, so neighbour-on-graph features tend to receive similar loadings.
+
+Interpretation:
+* `alpha` near 0: the prior is effectively inactive.
+* `alpha` large: row-wise loadings become piecewise-smooth across the graph.
+
+## Taxonomic groupwise
+
+`TaxonomicGroupwise` implements an l_{2,1}-style group-sparsity prior. Given
+`group_assignment[f] = g` mapping each feature to a taxonomic group id, the
+log-prob is
+
+```
+log p(W) = -alpha * sum_k sum_g ||W[k, group == g]||_2
+```
+
+Each latent dim pays a cost proportional to the number of taxonomic groups it
+uses (counted in l_2 norm rather than cardinality), encouraging each dim to
+concentrate weight in a few groups rather than spreading uniformly. `alpha` is
+learnable via softplus.
+
+Interpretation:
+* `alpha` near 0: prior inactive; loadings spread freely across groups.
+* `alpha` large: loadings become block-sparse -- each latent dim "claims" a
+  small number of groups.
 
 ## Interpretation
 

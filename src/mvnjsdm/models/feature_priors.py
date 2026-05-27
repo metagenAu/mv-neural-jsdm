@@ -100,18 +100,90 @@ class PhylogeneticPagel(_PhyloBase):
         return self._row_mvn_logprob(W, Sigma)
 
 
-class GraphLaplacian(FeatureStructurePrior):  # skeleton
-    def __init__(self, L: np.ndarray) -> None:
+class GraphLaplacian(FeatureStructurePrior):
+    """Tikhonov-style regulariser using a feature graph Laplacian L.
+
+    Defines an improper Gaussian-like prior on each row of W with precision
+    proportional to L (plus an optional ridge):
+
+        log_prob(W) = sum_k -alpha * W[k,:] @ L @ W[k,:]
+
+    The normalising constant is dropped because L is typically rank-deficient
+    (connected graphs have a zero eigenvalue from the constant vector). This
+    means the result is a regulariser, not a proper density.
+
+    ``alpha`` is a learnable positive scalar (softplus on an unconstrained
+    parameter).
+    """
+
+    def __init__(self, L: Tensor | np.ndarray, init_alpha: float = 1.0) -> None:
         super().__init__()
-        self.register_buffer("L", torch.as_tensor(L, dtype=torch.float32))
+        L_t = torch.as_tensor(L, dtype=torch.float32)
+        if L_t.ndim != 2 or L_t.shape[0] != L_t.shape[1]:
+            raise ValueError("L must be a square 2-D matrix")
+        self.register_buffer("L", L_t)
+        # softplus^{-1}(init_alpha): solve softplus(x) = init_alpha
+        # x = log(exp(init_alpha) - 1)
+        init_raw = float(np.log(np.expm1(max(init_alpha, 1e-4))))
+        self.raw_alpha = nn.Parameter(torch.tensor(init_raw, dtype=torch.float32))
 
-    def log_prob(self, W: Tensor) -> Tensor:  # pragma: no cover - skeleton
-        raise NotImplementedError("GraphLaplacian prior is a skeleton")
+    def alpha(self) -> Tensor:
+        return F.softplus(self.raw_alpha) + 1e-6
+
+    def log_prob(self, W: Tensor) -> Tensor:
+        # W: [K, F]; quadratic form sum_k W[k,:] L W[k,:]^T
+        L = self.L
+        # Wt @ L: [K, F]; element-wise W * (W @ L): sum_k row-wise quadratic form
+        WL = W @ L  # [K, F]
+        quad = (W * WL).sum()
+        return -self.alpha() * quad
+
+    def applies_to(self, assay_name: str) -> bool:  # noqa: D401
+        return True
 
 
-class TaxonomicGroupwise(FeatureStructurePrior):  # skeleton
-    def __init__(self, *args, **kwargs) -> None:
+class TaxonomicGroupwise(FeatureStructurePrior):
+    """Group-sparse prior on loading rows.
+
+    Given ``group_assignment[f] = g`` mapping each feature to a group id, the
+    log-prob is the negative group-l2 sum:
+
+        log_prob(W) = -alpha * sum_k sum_g ||W[k, group==g]||_2
+
+    This encourages each latent dim to use a few groups rather than spreading
+    weight uniformly across groups (an l_{2,1}-type sparsity).
+    """
+
+    def __init__(
+        self,
+        group_assignment: Tensor | np.ndarray,
+        init_alpha: float = 1.0,
+    ) -> None:
         super().__init__()
+        ga = torch.as_tensor(group_assignment, dtype=torch.long)
+        if ga.ndim != 1:
+            raise ValueError("group_assignment must be 1-D")
+        self.register_buffer("group_assignment", ga)
+        n_groups = int(ga.max().item()) + 1 if ga.numel() > 0 else 0
+        # Pre-compute a [G, F] indicator for vectorised group sums.
+        F_ = ga.shape[0]
+        ind = torch.zeros(n_groups, F_, dtype=torch.float32)
+        if F_ > 0:
+            ind[ga, torch.arange(F_)] = 1.0
+        self.register_buffer("group_indicator", ind)
+        init_raw = float(np.log(np.expm1(max(init_alpha, 1e-4))))
+        self.raw_alpha = nn.Parameter(torch.tensor(init_raw, dtype=torch.float32))
 
-    def log_prob(self, W: Tensor) -> Tensor:  # pragma: no cover - skeleton
-        raise NotImplementedError("TaxonomicGroupwise prior is a skeleton")
+    def alpha(self) -> Tensor:
+        return F.softplus(self.raw_alpha) + 1e-6
+
+    def log_prob(self, W: Tensor) -> Tensor:
+        # W: [K, F]; per (k, group) compute ||W[k, group]||_2 then sum.
+        W2 = W ** 2  # [K, F]
+        # sum within each group: [K, G] = W2 @ group_indicator^T
+        sums = W2 @ self.group_indicator.t()  # [K, G]
+        norms = torch.sqrt(sums.clamp_min(1e-12))
+        return -self.alpha() * norms.sum()
+
+    def applies_to(self, assay_name: str) -> bool:  # noqa: D401
+        return True

@@ -223,6 +223,116 @@ def synthetic_smoke_truth(synthetic_smoke_dir: Path) -> dict:
     return json.loads((synthetic_smoke_dir / "truth.json").read_text())
 
 
+def make_mixed_synthetic(out: Path, seed: int = 0) -> tuple[Path, dict]:
+    """Generate a 3-assay synthetic dataset (NB counts + Gaussian + Bernoulli).
+
+    Smaller than ``_generate_synthetic_smoke`` to keep CI fast; one phylogenetic
+    tree is attached to the counts assay so a Pagel prior can be wired in.
+
+    Returns ``(dataset_dir, truth_dict)``.
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    py_rng = random.Random(seed)
+    rng = np.random.default_rng(seed)
+
+    n_units = 100
+    n_groups = 3
+    F_counts = 40
+    F_chem = 10
+    F_binary = 5
+    K = 4
+
+    # Phylogenetic tree only on counts assay
+    newick_c, C_c, leaves_c = _random_binary_tree(F_counts, py_rng)
+    (out / "assay__assay_counts__tree.newick").write_text(newick_c)
+
+    # Loadings
+    sigma2 = 0.5
+    lam = 0.7
+    W_c = _draw_loadings(K, F_counts, C_c, lam, sigma2, rng).astype(np.float32)
+    W_g = (rng.standard_normal((K, F_chem)) * 0.6).astype(np.float32)
+    W_b = (rng.standard_normal((K, F_binary)) * 1.0).astype(np.float32)
+
+    intercept_c = rng.uniform(-1.0, 1.0, size=F_counts).astype(np.float32)
+    intercept_g = rng.uniform(-0.5, 0.5, size=F_chem).astype(np.float32)
+    intercept_b = rng.uniform(-0.5, 0.5, size=F_binary).astype(np.float32)
+
+    group_labels = [f"G{i}" for i in range(n_groups)]
+    unit_group = [py_rng.choice(group_labels) for _ in range(n_units)]
+    z = rng.standard_normal((n_units, K)).astype(np.float32)
+
+    # counts (NB via Gamma-Poisson)
+    sf = rng.uniform(800, 1200, size=n_units).astype(np.float32)
+    theta = 10.0
+    log_rate = np.clip(z @ W_c + intercept_c, -10, 10)
+    rate = np.exp(log_rate) * sf[:, None]
+    gpoisson = rng.gamma(theta, rate / theta + 1e-9)
+    counts = rng.poisson(gpoisson)
+
+    # continuous (Gaussian)
+    chem = z @ W_g + intercept_g + 0.3 * rng.standard_normal((n_units, F_chem)).astype(np.float32)
+
+    # binary (Bernoulli)
+    logits = z @ W_b + intercept_b
+    probs = 1.0 / (1.0 + np.exp(-logits))
+    binary = (rng.random(probs.shape) < probs).astype(np.float32)
+
+    # write
+    unit_ids = [f"u{i:04d}" for i in range(n_units)]
+    units = pd.DataFrame(
+        {
+            "unit_id": unit_ids,
+            "group__site": unit_group,
+            "env__temp": rng.normal(0, 1, size=n_units),
+        }
+    )
+    units.to_parquet(out / "units.parquet", index=False)
+
+    leaves_g = [f"g{i:02d}" for i in range(F_chem)]
+    leaves_b = [f"b{i:02d}" for i in range(F_binary)]
+
+    pd.DataFrame({"feature_id": leaves_c}).to_parquet(
+        out / "assay__assay_counts__features.parquet", index=False
+    )
+    pd.DataFrame({"feature_id": leaves_g}).to_parquet(
+        out / "assay__assay_chem__features.parquet", index=False
+    )
+    pd.DataFrame({"feature_id": leaves_b}).to_parquet(
+        out / "assay__assay_binary__features.parquet", index=False
+    )
+
+    # counts as long
+    rows = []
+    for i, uid in enumerate(unit_ids):
+        for j, fid in enumerate(leaves_c):
+            c = int(counts[i, j])
+            if c > 0:
+                rows.append((uid, fid, c))
+    pd.DataFrame(rows, columns=["unit_id", "feature_id", "count"]).to_parquet(
+        out / "assay__assay_counts__counts.parquet", index=False
+    )
+
+    # continuous wide
+    chem_df = pd.DataFrame(chem, columns=leaves_g)
+    chem_df.insert(0, "unit_id", unit_ids)
+    chem_df.to_parquet(out / "assay__assay_chem__values.parquet", index=False)
+
+    # binary wide
+    bin_df = pd.DataFrame(binary, columns=leaves_b)
+    bin_df.insert(0, "unit_id", unit_ids)
+    bin_df.to_parquet(out / "assay__assay_binary__binary.parquet", index=False)
+
+    truth = {
+        "n_units": n_units,
+        "K": K,
+        "F_counts": F_counts,
+        "F_chem": F_chem,
+        "F_binary": F_binary,
+        "lambda_true": lam,
+    }
+    return out, truth
+
+
 @pytest.fixture(scope="session")
 def trained_smoke(synthetic_smoke_dir: Path, tmp_path_factory) -> dict:
     """Train the smoke model once and share across tests.

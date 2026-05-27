@@ -1,5 +1,19 @@
 # @package _global_
+# Soil "full" model: 4 assays (two NB count + one continuous + one binary),
+# small env covariate stack, nested hierarchy. Pagel priors on the two count
+# assays. See ``soil_residual_flat.yaml`` for the assay naming convention.
 defaults:
+  - /assay@model.assays.chem: continuous_gaussian
+  - /assay@model.assays.indicators: binary_bernoulli
+  - /feature_structure@model.feature_structures.chem: none
+  - /feature_structure@model.feature_structures.indicators: none
   - override /data: soil_full
-  - override /env: full
-  - override /hierarchy: nested_with_crossed_year
+  - override /env@model.env: small
+  - override /hierarchy@model.hierarchy: nested
+  - override /feature_structure@model.feature_structures.assay_a: pagel_lambda
+  - override /feature_structure@model.feature_structures.assay_b: pagel_lambda
+
+model:
+  shared_dim: 8
+  private_dim: 4
+  fusion: mopoe

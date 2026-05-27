@@ -1,5 +1,14 @@
 # @package _global_
+# Bio-only residual model: two NB count assays, no env covariates, flat
+# (no hierarchical levels). Phylogenetic Pagel prior on both assay decoders.
 defaults:
   - override /data: bio_only_two_assays
-  - override /env: none
-  - override /hierarchy: flat
+  - override /env@model.env: none
+  - override /hierarchy@model.hierarchy: flat
+  - override /feature_structure@model.feature_structures.assay_a: pagel_lambda
+  - override /feature_structure@model.feature_structures.assay_b: pagel_lambda
+
+model:
+  shared_dim: 8
+  private_dim: 4
+  fusion: mopoe

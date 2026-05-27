@@ -9,7 +9,7 @@ presets without rewriting top-level files. The axes and presets:
 | `env`               | `none`, `small`, `full`                                                       |
 | `hierarchy`         | `flat`, `nested`, `nested_with_crossed_year`                                  |
 | `gp`                | `off`, `phenological`, `spatial`, `phen_and_spatial`                          |
-| `feature_structure` | `none`, `pagel_lambda`, `brownian`, `graph_laplacian`                         |
+| `feature_structure` | `none`, `pagel_lambda`, `brownian`, `graph_laplacian`, `taxonomic_groupwise`  |
 | `training`          | `smoke`, `default`                                                            |
 | `data`              | `synthetic_smoke`, `bio_only_two_assays`, `soil_full`                         |
 
@@ -21,8 +21,19 @@ presets without rewriting top-level files. The axes and presets:
 | `bio_only_residual`         | `bio_only_two_assays` | none   | flat                         | default  | data pending   |
 | `bio_only_full`             | `bio_only_two_assays` | small  | nested                       | default  | data pending   |
 | `soil_residual_flat`        | `soil_full`           | none   | flat                         | default  | data pending   |
-| `soil_full_hierarchical`    | `soil_full`           | full   | nested_with_crossed_year     | default  | data pending   |
-| `variance_partition`        | `soil_full`           | full   | nested_with_crossed_year     | default  | data pending   |
+| `soil_full_hierarchical`    | `soil_full`           | small  | nested                       | default  | data pending   |
+| `variance_partition`        | `soil_full`           | small  | nested                       | default  | data pending   |
+
+The soil experiments compose four assays (`assay_a`, `assay_b` as NB counts,
+`chem` as Gaussian, `indicators` as Bernoulli).
+
+### Assay x likelihood axis
+
+| assay kind   | available likelihoods                       |
+|--------------|---------------------------------------------|
+| counts       | `nb`, `zinb` (Poisson pending)              |
+| continuous   | `gaussian_masked`                           |
+| binary       | `bernoulli`                                 |
 
 ## Invocation examples
 

@@ -61,9 +61,40 @@ class NBLikelihood(Likelihood):
         return lp.sum(dim=-1)
 
 
-class ZINBLikelihood(Likelihood):  # stub
-    def log_prob(self, x, params, mask=None):  # pragma: no cover - stub
-        raise NotImplementedError("ZINBLikelihood is a stub")
+class ZINBLikelihood(Likelihood):
+    """Zero-inflated negative binomial.
+
+    Mixture of a point mass at zero (probability ``gate``) and a NB(mu, theta)
+    component. The per-element log-prob is:
+
+        log p(x=0) = log(gate + (1 - gate) * NB(0 | mu, theta))
+        log p(x>0) = log(1 - gate) + log NB(x | mu, theta)
+
+    Implemented numerically with :func:`torch.logaddexp` to avoid loss of
+    precision when ``gate`` is small or NB(0) is small. ``params.gate`` is
+    expected to be a probability in ``[0, 1]`` (the decoder applies the
+    sigmoid).
+    """
+
+    def log_prob(self, x: Tensor, params: LikelihoodParams, mask: Tensor | None = None) -> Tensor:
+        assert params.theta is not None, "ZINB requires theta"
+        assert params.gate is not None, "ZINB requires gate"
+        eps = 1e-8
+        gate = params.gate.clamp(min=eps, max=1.0 - eps)
+        log_gate = torch.log(gate)
+        log_1m_gate = torch.log(1.0 - gate)
+        # NB log-prob for x=0 vs x>0 computed once per cell
+        log_nb_x = _nb_log_prob(x, params.mu, params.theta)
+        # zero-cell: logaddexp(log_gate, log_1m_gate + log_nb_0)
+        zeros = torch.zeros_like(x)
+        log_nb_0 = _nb_log_prob(zeros, params.mu, params.theta)
+        log_p_zero = torch.logaddexp(log_gate, log_1m_gate + log_nb_0)
+        log_p_pos = log_1m_gate + log_nb_x
+        is_zero = (x < 0.5).to(log_p_zero.dtype)
+        lp = is_zero * log_p_zero + (1.0 - is_zero) * log_p_pos
+        if mask is not None:
+            lp = lp * mask
+        return lp.sum(dim=-1)
 
 
 class GaussianMaskedLikelihood(Likelihood):

@@ -28,7 +28,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .decoders import BernoulliDecoder, Decoder, GaussianDecoder, NBDecoder
+from .decoders import BernoulliDecoder, Decoder, GaussianDecoder, NBDecoder, ZINBDecoder
 from .encoders import BinaryEncoder, ContinuousEncoder, CountEncoder, Encoder, EnvCovariateEncoder
 from .feature_priors import FeatureStructurePrior, NoFeaturePrior, PhylogeneticPagel
 from .fusion import ExpertOutput, Fusion, build_fusion
@@ -72,6 +72,13 @@ def _build_decoder(spec: AssaySpec, in_dim: int) -> Decoder:
         fp = NoFeaturePrior()
     if spec.likelihood == "nb":
         return NBDecoder(
+            in_dim=in_dim,
+            n_features=spec.n_features,
+            feature_prior=fp,
+            use_size_factor=spec.size_factor,
+        )
+    if spec.likelihood == "zinb":
+        return ZINBDecoder(
             in_dim=in_dim,
             n_features=spec.n_features,
             feature_prior=fp,

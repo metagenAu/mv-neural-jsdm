@@ -80,3 +80,37 @@ LightningModule, the Hydra CLI, and the integration smoke test.
 `GPLatentPrior`, `GraphLaplacian`, `TaxonomicGroupwise`, ZINB/Gaussian/
 Bernoulli/Poisson likelihoods, all of `analysis/`, `interpret/`, `eval/`, and
 the non-smoke experiment configs.
+
+## Assay surface
+
+The model can mix the following (kind, likelihood) combinations in a single
+training run; per-assay encoders and decoders are dispatched in
+`mvnjsdm._build_encoder` / `_build_decoder`:
+
+| kind         | likelihood        | encoder            | decoder           | status |
+|--------------|-------------------|--------------------|-------------------|--------|
+| counts       | nb                | CountEncoder       | NBDecoder         | done   |
+| counts       | zinb              | CountEncoder       | ZINBDecoder       | done   |
+| continuous   | gaussian_masked   | ContinuousEncoder  | GaussianDecoder   | done   |
+| binary       | bernoulli         | BinaryEncoder      | BernoulliDecoder  | done   |
+| counts       | poisson           | CountEncoder       | (stub)            | pending |
+
+ZINBDecoder mirrors NBDecoder and adds a per-feature dropout-logit head; the
+`gate` is shared across units (a per-feature bias). The ZINB likelihood is
+implemented in `models/likelihoods.ZINBLikelihood`.
+
+## CLI surface
+
+End-to-end use:
+
+* `python -m mvnjsdm.cli.train +experiment=<name>` -- trains, writes
+  `latents.parquet`, `config.yaml`, `model.ckpt`, `summary.json` under
+  `output_dir`.
+* `python -m mvnjsdm.cli.analyse run_dir=<output_dir> analyses=[...]` --
+  reloads the run and writes per-analysis files into `<output_dir>/analysis/`.
+* `python -m mvnjsdm.cli.export run_dir=<output_dir>` -- reloads the run and
+  writes latents (parquet + csv + optional SEM-ready CSV).
+
+The reload path lives in `cli/_reload.py` and uses the shared
+`cli/_build.py:build_model_from_cfg` helper to rebuild the model from the
+saved config and state dict.

@@ -1,1 +1,14 @@
+# Two-assay bio-only example.
+#
+# Expected dataset layout at ${data_root}:
+#   units.parquet                        unit_id, group__*, env__*?, cont__*?
+#   assay__assay_a__counts.parquet       unit_id, feature_id, count
+#   assay__assay_a__features.parquet     feature_id (+ taxonomy cols)
+#   assay__assay_a__tree.newick          optional phylogenetic tree
+#   assay__assay_b__counts.parquet       (same schema as assay_a)
+#   assay__assay_b__features.parquet
+#   assay__assay_b__tree.newick
+#
+# Users should provide this directory via scripts/prepare_example_bio_only.py
+# (currently a stub) or by hand.
 data_root: data/examples/bio_only_two_assays
