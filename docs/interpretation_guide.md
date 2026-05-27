@@ -79,3 +79,36 @@ for downstream averaging or weighting.
 `training.callbacks.LatentCollapseMonitor` logs the number of active latent
 dimensions per validation epoch (variance of mu_q > 1e-2). Collapse indicates
 over-regularisation (often `beta_*` too large) or insufficient signal.
+
+## Cross-assay coupling (analysis/coupling.py)
+
+Two kinds of coupling are reported:
+
+### Contemporaneous coupling
+
+`contemporaneous_coupling(model, dm, assay_a, assay_b, n_samples=32)` samples
+z from the per-unit posterior repeatedly and computes Pearson correlations
+between the decoded outputs of two assays at the *same* index point. Returns a
+`[F_a, F_b]` DataFrame indexed by feature ids. Works with any trained model —
+no GP required.
+
+Use this to ask: "When two assays share a latent driver, which feature pairs
+are tied together at a single sample?".
+
+### Lagged coupling
+
+`lagged_coupling(model, dm, assay_a, assay_b, index_name, lag, n_samples=32)`
+correlates decoded outputs at two index points separated by `lag` along
+`index_name` (a `cont__<name>` column). Requires a GP-trained model — the GP
+posterior propagates z smoothly to the lagged index. Calling this without a
+configured GP raises a `RuntimeError` pointing at the GP config.
+
+For lag = 0 this delegates to `contemporaneous_coupling`.
+
+Use this to ask: "Does the state of assay A at time t predict the state of
+assay B at time t + lag?". This is the natural cross-assay analogue of an
+autocorrelogram and is the workhorse for downstream lead-lag inference.
+
+`latent_lagged_covariance(model, dm, index_name, lag)` returns the
+`[K_joint, K_joint]` cross-covariance of z(t) vs z(t+lag) from the GP
+posterior, useful as a low-rank summary upstream of feature-level coupling.

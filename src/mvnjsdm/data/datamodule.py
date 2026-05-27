@@ -97,6 +97,7 @@ class _MVDataset(Dataset):
             out["cont"] = torch.tensor(
                 self.units.iloc[row][self.cont_cols].to_numpy(dtype=np.float32)
             )
+            out["cont_columns"] = list(self.cont_cols)
         if self.batch_cols:
             out["batch_cov"] = torch.tensor(
                 self.units.iloc[row][self.batch_cols].to_numpy(dtype=np.float32)
@@ -129,6 +130,13 @@ def _collate(batch: list[dict[str, Any]]) -> dict[str, Any]:
             out[key] = torch.stack([b[key] for b in batch])
         else:
             out[key] = None
+    if "cont_columns" in batch[0]:
+        out["cont_columns"] = batch[0]["cont_columns"]
+        cols = out["cont_columns"]
+        if out.get("cont") is not None and cols:
+            out["continuous_indices"] = {
+                c: out["cont"][:, i] for i, c in enumerate(cols)
+            }
     return out
 
 
@@ -176,6 +184,22 @@ class MVNeuralJSDMDataModule(pl.LightningDataModule):
         ad_obj = self.mud[assay_name]
         if "tree_C" in ad_obj.varm:
             return np.asarray(ad_obj.varm["tree_C"])
+        return None
+
+    def get_graph_L(self, assay_name: str) -> np.ndarray | None:
+        if self.mud is None:
+            self.setup()
+        ad_obj = self.mud[assay_name]
+        if "graph_L" in ad_obj.varm:
+            return np.asarray(ad_obj.varm["graph_L"])
+        return None
+
+    def get_taxonomy_groups(self, assay_name: str) -> np.ndarray | None:
+        if self.mud is None:
+            self.setup()
+        ad_obj = self.mud[assay_name]
+        if "taxonomy_groups" in ad_obj.varm:
+            return np.asarray(ad_obj.varm["taxonomy_groups"]).astype(np.int64).ravel()
         return None
 
     # -- lifecycle ------

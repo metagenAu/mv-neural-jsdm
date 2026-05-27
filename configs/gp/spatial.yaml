@@ -1,4 +1,8 @@
 # @package model.gp
 enabled: true
-index: cont__easting
-kernel: matern52
+applies_to: shared
+kernel: matern_5_2
+input_columns: [cont__row, cont__col]
+init_lengthscale: 1.0
+init_outputscale: 1.0
+jitter: 1.0e-4

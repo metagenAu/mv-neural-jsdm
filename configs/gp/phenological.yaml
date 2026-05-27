@@ -1,4 +1,8 @@
 # @package model.gp
 enabled: true
-index: cont__day_of_year
+applies_to: shared
 kernel: rbf
+input_columns: [cont__t]
+init_lengthscale: 1.0
+init_outputscale: 1.0
+jitter: 1.0e-4

@@ -112,6 +112,18 @@ def load_dataset(root: str | Path) -> md.MuData:
             L = graph_laplacian(edges, feature_ids)
             ad_obj.varm["graph_L"] = L
             ad_obj.uns["has_graph"] = True
+        if assay.taxonomy_path is not None and assay.taxonomy_path.exists():
+            tax = pd.read_parquet(assay.taxonomy_path)
+            # Expect 'feature_id' + 'group' (categorical or int) columns.
+            if "feature_id" in tax.columns and "group" in tax.columns:
+                tax = tax.set_index("feature_id")
+                ordered = tax.reindex(feature_ids)["group"]
+                # Code groups to a contiguous integer space.
+                cats = ordered.astype("category")
+                ad_obj.varm["taxonomy_groups"] = np.asarray(
+                    cats.cat.codes.to_numpy(), dtype=np.int64
+                ).reshape(-1, 1)
+                ad_obj.uns["has_taxonomy"] = True
 
         modalities[assay.name] = ad_obj
 

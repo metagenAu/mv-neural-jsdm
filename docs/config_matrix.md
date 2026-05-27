@@ -12,6 +12,7 @@ presets without rewriting top-level files. The axes and presets:
 | `feature_structure` | `none`, `pagel_lambda`, `brownian`, `graph_laplacian`, `taxonomic_groupwise`  |
 | `training`          | `smoke`, `default`                                                            |
 | `data`              | `synthetic_smoke`, `bio_only_two_assays`, `soil_full`                         |
+| `ar`                | set `model.ar.enabled=true` and `model.ar.index_name=cont__<name>` (no preset, inline only) |
 
 ## Experiment presets
 
@@ -22,6 +23,8 @@ presets without rewriting top-level files. The axes and presets:
 | `bio_only_full`             | `bio_only_two_assays` | small  | nested                       | default  | data pending   |
 | `soil_residual_flat`        | `soil_full`           | none   | flat                         | default  | data pending   |
 | `soil_full_hierarchical`    | `soil_full`           | small  | nested                       | default  | data pending   |
+| `soil_full_hierarchical_temporal`    | `soil_full`  | small  | nested + GP (`phenological`) | default  | data pending   |
+| `soil_full_hierarchical_temporal_ar` | `soil_full`  | small  | nested + GP + AR             | default  | data pending   |
 | `variance_partition`        | `soil_full`           | small  | nested                       | default  | data pending   |
 
 The soil experiments compose four assays (`assay_a`, `assay_b` as NB counts,

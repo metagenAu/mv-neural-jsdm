@@ -8,7 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from ..data.datamodule import MVNeuralJSDMDataModule
 from ..models.hierarchy import LevelSpec
-from ..models.mvnjsdm import AssaySpec, MVNeuralJSDM
+from ..models.mvnjsdm import AssaySpec, GPSpec, MVNeuralJSDM
 from ..training.lightning_module import MVNeuralJSDMLit
 from ..training.losses import LossWeights
 
@@ -25,6 +25,12 @@ def build_assay_specs(cfg: DictConfig, dm: MVNeuralJSDMDataModule) -> list[Assay
         feature_structure = fs.get("kind", "none")
         init_lambda = float(fs.get("init_lambda", 0.5))
         tree_C = dm.get_tree_C(name) if feature_structure in ("pagel", "brownian") else None
+        graph_L = dm.get_graph_L(name) if feature_structure == "graph_laplacian" else None
+        tax_groups = (
+            dm.get_taxonomy_groups(name)
+            if feature_structure == "taxonomic_groupwise"
+            else None
+        )
         specs.append(
             AssaySpec(
                 name=name,
@@ -36,9 +42,37 @@ def build_assay_specs(cfg: DictConfig, dm: MVNeuralJSDMDataModule) -> list[Assay
                 tree_C=tree_C,
                 feature_structure=feature_structure,
                 init_lambda=init_lambda,
+                feature_structure_config=fs,
+                graph_L=graph_L,
+                taxonomy_groups=tax_groups,
             )
         )
     return specs
+
+
+def build_gp_spec(cfg: DictConfig) -> GPSpec | None:
+    gp_cfg = cfg.model.get("gp", None)
+    if gp_cfg is None:
+        return None
+    d = OmegaConf.to_container(gp_cfg, resolve=True)
+    if not d or not d.get("enabled", False):
+        return GPSpec(enabled=False)
+    # Resolve input columns: prefer 'input_columns', fall back to a single
+    # 'index' string (legacy YAML shape).
+    cols = d.get("input_columns")
+    if cols is None:
+        single = d.get("index")
+        cols = [single] if single else []
+    return GPSpec(
+        enabled=True,
+        input_columns=list(cols),
+        kernel=str(d.get("kernel", "rbf")),
+        init_lengthscale=float(d.get("init_lengthscale", 1.0)),
+        init_outputscale=float(d.get("init_outputscale", 1.0)),
+        init_period=(float(d["init_period"]) if d.get("init_period") is not None else None),
+        jitter=float(d.get("jitter", 1e-4)),
+        applies_to=d.get("applies_to", "shared"),
+    )
 
 
 def build_hierarchy_levels(cfg: DictConfig, dm: MVNeuralJSDMDataModule) -> list[LevelSpec]:
@@ -81,13 +115,17 @@ def build_model_from_cfg(cfg: DictConfig, dm: MVNeuralJSDMDataModule) -> tuple[M
     assay_specs = build_assay_specs(cfg, dm)
     hierarchy_levels = build_hierarchy_levels(cfg, dm)
     env_dim = len(dm.env_cols) if cfg.model.get("env", {}).get("enabled", False) else 0
+    gp_spec = build_gp_spec(cfg)
+    ar_cfg = OmegaConf.to_container(cfg.model.get("ar", {}), resolve=True) or {}
     model = MVNeuralJSDM(
         assay_specs=assay_specs,
         shared_dim=int(cfg.model.shared_dim),
         fusion=str(cfg.model.fusion),
         hierarchy_levels=hierarchy_levels,
         env_dim=env_dim,
-        ar_enabled=bool(cfg.model.get("ar", {}).get("enabled", False)),
+        ar_enabled=bool(ar_cfg.get("enabled", False)),
+        gp_spec=gp_spec,
+        ar_config=ar_cfg,
     )
     weights = LossWeights(
         beta_shared=float(cfg.model.beta_shared),
